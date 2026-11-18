@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NYC Half 2027 Live Pacer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --glass:rgba(14,18,23,.80); --glass2:rgba(255,255,255,.08); --line:rgba(255,255,255,.14);
+  --ink:#fff; --dim:#b3bdc7; --up:#ff7a3d; --down:#3fd0d6; --flat:#c9d1d9;
+  --good:#5fe08f; --bad:#ff6b6b; --you:#ffe14a;
+  --num:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --txt:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0b0f14;color:var(--ink);font-family:var(--txt);overflow:hidden;-webkit-text-size-adjust:100%}
+button{font-family:var(--txt);color:var(--ink);cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--you);outline-offset:2px}
+#map,#svgmap{position:fixed;inset:0;width:100%;height:100%}
+#svgmap{display:none;background:#0b0f14}
+#svgmap text{font-family:var(--txt);fill:var(--dim)}
+.maplibregl-map{position:relative;overflow:hidden}
+.maplibregl-canvas-container{position:absolute;inset:0}
+.maplibregl-canvas{position:absolute;left:0;top:0;outline:none}
+.maplibregl-marker{position:absolute;top:0;left:0;will-change:transform}
+.maplibregl-control-container{display:none}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+.hud{position:fixed;left:0;right:0;display:flex;justify-content:center;pointer-events:none;padding:0 10px;z-index:5}
+.hud>*{pointer-events:auto;width:100%;max-width:540px}
+.top{top:10px;flex-direction:column;align-items:center;gap:8px}
+.bar{display:flex;gap:8px;align-items:center}
+.pill{display:flex;padding:3px;border-radius:999px}
+.pill button{border:0;background:none;font:600 14px var(--txt);color:var(--dim);padding:8px 14px;border-radius:999px}
+.pill button[aria-pressed="true"]{background:#fff;color:#0b0f14}
+.icon{width:42px;height:42px;border-radius:50%;font-size:19px;display:grid;place-items:center;padding:0;margin-left:auto}
+.icon+.icon{margin-left:0}
+.nav{display:flex;gap:12px;align-items:center;padding:12px 14px}
+.arrow{width:54px;height:54px;border-radius:14px;flex:none;display:grid;place-items:center;background:var(--flat);color:#0b0f14}
+.nav.up .arrow{background:var(--up)} .nav.down .arrow{background:var(--down)}
+.arrow svg{width:34px;height:34px;transition:transform .3s}
+.nav.up .arrow svg{transform:rotate(-38deg)} .nav.down .arrow svg{transform:rotate(38deg)}
+.nav .l1{font:700 30px/1 var(--num);letter-spacing:.01em}
+.nav .l2{font:500 15px/1.25 var(--txt);color:var(--dim);margin-top:4px}
+.nav .l2 b{color:var(--ink);font-weight:600}
+.notice{font:500 13px/1.35 var(--txt);padding:9px 12px;border-radius:12px;display:none}
+.bottom{bottom:10px}
+.sheet{padding:12px 12px 10px}
+.where{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:0 2px}
+.where .mi{font:700 22px var(--num);font-variant-numeric:tabular-nums}
+.where .zone{font:500 14px var(--txt);color:var(--dim);text-align:right}
+.big{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+.cell{background:var(--glass2);border-radius:12px;padding:8px 10px 7px;min-width:0}
+.lbl{font:600 10.5px var(--txt);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.cell .v{font:700 clamp(30px,9vw,50px)/1 var(--num);font-variant-numeric:tabular-nums;margin-top:3px;white-space:nowrap}
+.cell .u{font:500 12px var(--txt);color:var(--dim);margin-top:2px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell.up .v{color:var(--up)} .cell.down .v{color:var(--down)} .cell.good .v{color:var(--good)} .cell.bad .v{color:var(--bad)}
+#profile{display:block;width:100%;height:58px;margin-top:10px;border-radius:8px;touch-action:none;cursor:ew-resize}
+.live #profile{cursor:default}
+.axis{display:flex;justify-content:space-between;font:500 10.5px var(--txt);color:var(--dim);margin-top:3px}
+.row{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+.btn{font:600 14px var(--txt);padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--glass2)}
+.btn.primary{background:var(--you);color:#111;border-color:var(--you)}
+.status{font:500 12.5px/1.3 var(--txt);color:var(--dim);flex:1 1 150px}
+.status.err{color:var(--bad)}
+.mini{display:none;gap:14px;font:500 12px var(--txt);color:var(--dim);margin-top:8px;padding:0 2px}
+.mini b{display:block;font:700 22px var(--num);color:var(--ink);font-variant-numeric:tabular-nums}
+.mini .good b{color:var(--good)} .mini .bad b{color:var(--bad)}
+.live .mini{display:flex} .live .study{display:none} .livebar{display:none} .live .livebar{display:flex}
+.attr{font:400 9px/1.3 var(--txt);color:rgba(255,255,255,.5);margin-top:7px}
+#panel{position:fixed;inset:0;z-index:20;display:none;background:rgba(0,0,0,.5);align-items:flex-end;justify-content:center}
+#panel.open{display:flex}
+.pbody{width:100%;max-width:560px;max-height:88%;overflow:auto;padding:16px;border-radius:20px 20px 0 0}
+.pbody h2{font:700 24px var(--num);margin:0;text-transform:uppercase;letter-spacing:.02em}
+.phead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.goal{display:flex;align-items:center;gap:6px;margin:6px 0 14px}
+.goal input{width:136px;font:700 30px var(--num);text-align:center;background:var(--glass2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:4px 6px;font-variant-numeric:tabular-nums}
+.step{width:44px;height:46px;border-radius:10px;border:1px solid var(--line);background:var(--glass2);font-size:22px}
+.goal span{margin-left:auto;text-align:right;font:500 12px var(--txt);color:var(--dim)}
+.goal span b{display:block;font:700 24px var(--num);color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-top:6px}
+th{font:600 10.5px var(--txt);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:right;padding:6px;border-bottom:1px solid var(--line)}
+td{padding:6px;text-align:right;border-bottom:1px solid var(--line);font:500 14px var(--txt)}
+th:first-child,td:first-child{text-align:left}
+td.p{font:700 18px var(--num)}
+tr.cur td{background:var(--glass2)}
+.gu{color:var(--up)} .gd{color:var(--down)}
+.note{font:400 13px/1.5 var(--txt);color:var(--dim);margin:12px 0 0}
+.note b{color:var(--ink);font-weight:600}
+.filebtn{display:inline-block;margin-top:10px}
+.filebtn input{position:absolute;opacity:0;width:1px;height:1px}
+.dot{width:22px;height:22px;border-radius:50%;background:var(--you);border:3px solid #111;box-shadow:0 0 0 3px rgba(255,225,74,.35),0 2px 8px rgba(0,0,0,.6)}
+.mk{min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#fff;color:#0b0f14;font:700 12px/22px var(--txt);text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.6)}
+.mk.end{background:#0b0f14;color:#fff;border:2px solid #fff;line-height:18px}
+@media(min-width:900px){.hud{justify-content:flex-start;padding-left:16px}.top{align-items:flex-start}}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="map"></div>
+<svg id="svgmap" role="img" aria-label="Course map"></svg>
+
+<div class="hud top">
+  <div class="bar">
+    <div class="pill glass"><button id="tabStudy" aria-pressed="true">Study</button><button id="tabLive" aria-pressed="false">Live GPS</button></div>
+    <button class="icon glass" id="view" aria-label="Switch between follow view and full course" title="Follow / full course">&#9678;</button>
+    <button class="icon glass" id="gear" aria-label="Goal, splits and course settings" title="Goal and splits">&#9881;</button>
+  </div>
+  <div class="nav glass" id="nav">
+    <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></div>
+    <div><div class="l1" id="n1"></div><div class="l2" id="n2"></div></div>
+  </div>
+  <div class="notice glass" id="notice"></div>
+</div>
+
+<div class="hud bottom">
+  <div class="sheet glass">
+    <div class="where"><div class="mi" id="mi">MI 0.00</div><div class="zone" id="zone"></div></div>
+    <div class="big">
+      <div class="cell" id="cGrade"><div class="lbl">Grade now</div><div class="v" id="grade">0.0%</div><div class="u" id="gradeU"></div></div>
+      <div class="cell"><div class="lbl">Target pace</div><div class="v" id="target">0:00</div><div class="u">this section</div></div>
+      <div class="cell" id="cYou"><div class="lbl" id="youL">Clock here</div><div class="v" id="you">0:00</div><div class="u" id="youU"></div></div>
+    </div>
+    <svg id="profile" viewBox="0 0 1000 100" preserveAspectRatio="none" role="img" aria-label="Elevation profile. Drag to move along the course."></svg>
+    <div class="axis" id="axis"></div>
+    <div class="mini">
+      <div>Race clock<b id="clk">0:00:00</b></div>
+      <div id="cAB">Vs plan<b id="ab">--</b></div>
+      <div>Projected finish<b id="proj">--</b></div>
+    </div>
+    <div class="row study"><button class="btn primary" id="play">Play flyover</button><div class="status">Drag the elevation strip to scrub the course.</div></div>
+    <div class="row livebar"><button class="btn primary" id="gps">Start GPS</button><button class="btn" id="clkBtn">Start clock</button><div class="status" id="status">GPS is off.</div></div>
+    <div class="attr" id="attr"></div>
+  </div>
+</div>
+
+<div id="panel"><div class="pbody glass">
+  <div class="phead"><h2>Goal and splits</h2><button class="btn" id="close">Done</button></div>
+  <div class="lbl">Goal time</div>
+  <div class="goal"><button class="step" id="minus" aria-label="15 seconds faster">&minus;</button><input id="goal" inputmode="numeric" aria-label="Goal finish time, h:mm:ss"><button class="step" id="plus" aria-label="15 seconds slower">+</button><span>average<b id="avg">0:00</b>per mile</span></div>
+  <div class="lbl">Pacing</div>
+  <div class="pill" style="border:1px solid var(--line);display:inline-flex;margin:6px 0 10px"><button id="sEffort" aria-pressed="true">Even effort</button><button id="sPace" aria-pressed="false">Even pace</button></div>
+  <table><thead><tr><th>Mile</th><th>Net ft</th><th>Grade</th><th>Target</th><th>Clock</th></tr></thead><tbody id="splits"></tbody></table>
+  <p class="note" id="src"></p>
+  <label class="btn filebtn">Load a GPX file<input type="file" id="gpx" accept=".gpx,application/gpx+xml,text/xml"></label>
+  <button class="btn" id="reset" hidden>Back to built-in course</button>
+  <p class="note"><b>Target pace.</b> Even effort slows you about 3.3% per 1% of climb and speeds you up about 1.8% per 1% of descent, then scales every section so the splits add up to the goal exactly.</p>
+  <p class="note"><b>Live GPS.</b> Phone on you, screen on, page opened from its own https address in Safari or Chrome. Location and satellite imagery are both blocked inside the Claude app.</p>
+</div></div>
+</div>
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script>
+"use strict";
+var RACE_MI=13.1094;
+var BUILTIN=
+[[40.66502,-73.96131,93,"Washington Ave start"],[40.66455,-73.96122,88],[40.66408,-73.96112,88],[40.66361,-73.96103,83],[40.66346,-73.96105,83],[40.66338,-73.96113,83],[40.66335,-73.96182,84],[40.66332,-73.96251,88],[40.66352,-73.9627,88],[40.66348,-73.96266,88,"Flatbush Ave out and back"],[40.66394,-73.96298,90],[40.6644,-73.9633,94],[40.66486,-73.96362,100],[40.66532,-73.96394,100],[40.66578,-73.96425,108],[40.66624,-73.96457,115],[40.6667,-73.96489,115],[40.66716,-73.96521,123],[40.66762,-73.96553,131],[40.66809,-73.96587,138],[40.66809,-73.96587,134],[40.66762,-73.96553,127],[40.66716,-73.96521,119],[40.6667,-73.96489,111],[40.66624,-73.96458,111],[40.66577,-73.96426,104],[40.66531,-73.96394,96],[40.66485,-73.96363,96],[40.66439,-73.96331,91],[40.66393,-73.96299,89],[40.66375,-73.96302,89],[40.66362,-73.96333,90],[40.66348,-73.96364,90],[40.66317,-73.964,87],[40.66282,-73.96407,87],[40.66247,-73.96413,89],[40.66222,-73.96423,89,"Prospect Park, East Drive"],[40.66211,-73.96433,89],[40.66203,-73.96451,89],[40.66203,-73.96472,91],[40.66213,-73.96503,91],[40.6626,-73.96526,94],[40.66297,-73.96526,94],[40.66334,-73.96526,97],[40.66361,-73.96531,97],[40.66403,-73.96553,100],[40.66446,-73.96575,100],[40.66488,-73.96598,98],[40.66531,-73.9662,99],[40.66573,-73.96642,99],[40.66608,-73.9667,107,"Battle Pass Hill"],[40.66636,-73.96712,116],[40.66665,-73.96754,116],[40.66683,-73.96794,126],[40.66701,-73.96834,126],[40.66737,-73.96871,134],[40.66783,-73.96877,134],[40.66828,-73.96884,144],[40.66874,-73.96911,154],[40.66907,-73.96915,154],[40.66929,-73.96907,160],[40.66969,-73.96883,160],[40.67008,-73.96858,166],[40.67053,-73.96854,166],[40.6709,-73.9688,163,"Grand Army Plaza"],[40.67122,-73.96933,156],[40.6712,-73.9693,156],[40.67156,-73.96957,156],[40.67189,-73.96963,148],[40.67221,-73.96969,148],[40.67216,-73.96968,148],[40.67253,-73.96969,141],[40.67278,-73.96962,141],[40.67329,-73.96963,136],[40.6738,-73.96964,131],[40.67411,-73.96973,131],[40.67434,-73.96988,127],[40.67466,-73.97027,127,"Flatbush Ave"],[40.67492,-73.97085,122],[40.67539,-73.97119,114],[40.67585,-73.97153,114],[40.67632,-73.97186,107],[40.67679,-73.9722,100],[40.67726,-73.97254,93],[40.67772,-73.97288,93],[40.67819,-73.97321,85],[40.67866,-73.97355,78],[40.67913,-73.97389,71],[40.67959,-73.97423,66],[40.68006,-73.97456,66],[40.68053,-73.9749,61],[40.681,-73.97524,55],[40.68146,-73.97558,51],[40.68193,-73.97592,51],[40.6824,-73.97625,49],[40.68286,-73.97659,49],[40.68333,-73.97693,45],[40.6838,-73.97727,45],[40.68427,-73.9776,50],[40.68473,-73.97794,50],[40.6852,-73.97828,47],[40.68567,-73.97862,47],[40.68614,-73.97895,45],[40.6866,-73.97929,42],[40.68707,-73.97963,41],[40.68754,-73.97997,41],[40.68801,-73.9803,39],[40.68847,-73.98064,38],[40.68894,-73.98098,38],[40.68911,-73.98097,38],[40.6897,-73.98127,41],[40.69029,-73.98156,46],[40.69088,-73.98186,51],[40.69147,-73.98216,51],[40.69206,-73.98245,49],[40.69265,-73.98275,42],[40.69325,-73.98305,37],[40.69384,-73.98334,35],[40.69443,-73.98364,34],[40.69502,-73.98393,34],[40.69561,-73.98423,39],[40.6962,-73.98453,46],[40.696133,-73.984676,46,"Tillary St"],[40.696139,-73.98481,46],[40.696147,-73.985062,46],[40.696151,-73.985577,47],[40.69617,-73.98617,48],[40.696188,-73.986762,48],[40.696207,-73.987355,49],[40.696225,-73.987947,49],[40.696244,-73.98854,50],[40.696247,-73.988653,50],[40.696605,-73.988627,51,"Brooklyn Bridge climb"],[40.697537,-73.988572,55],[40.698168,-73.988527,58],[40.698596,-73.988525,60],[40.69918,-73.988497,62],[40.699333,-73.988506,63],[40.699463,-73.988529,64],[40.699633,-73.988593,65],[40.699771,-73.988676,66],[40.699863,-73.988747,66],[40.699924,-73.988804,67],[40.7001,-73.989,68],[40.70055,-73.9897,74],[40.7008,-73.99005,78],[40.70094,-73.9902,79],[40.70114,-73.99045,82],[40.70126,-73.9906,84],[40.70177,-73.99123,90],[40.70247,-73.99211,98],[40.70327,-73.99311,106],[40.70443,-73.99455,119],[40.70554,-73.99595,135,"Brooklyn Bridge descent"],[40.70665,-73.99734,128],[40.70733,-73.99819,123],[40.70791,-73.99897,118],[40.70811,-73.99921,114],[40.70858,-73.99981,104],[40.70935,-74.00078,88],[40.7098,-74.00134,80],[40.71119,-74.00309,55,"Bridge exit ramp"],[40.71131,-74.00327,53],[40.7114,-74.00328,52],[40.71153,-74.00334,51],[40.71165,-74.00332,50],[40.71178,-74.00317,48],[40.71181,-74.00304,48],[40.7118,-74.00293,47],[40.71175,-74.00281,47],[40.71167,-74.00272,46],[40.71156,-74.00266,46],[40.71136,-74.00261,45],[40.71108,-74.00246,44],[40.71091,-74.00234,43],[40.71071,-74.00216,43],[40.70937,-74.00049,38],[40.70919,-74.00033,37],[40.70902,-74.00021,37],[40.70866,-74.00017,36,"FDR Drive"],[40.70847,-74.00013,35],[40.70836,-74.00006,35],[40.70821,-73.99987,35],[40.70815,-73.99972,35],[40.70812,-73.99955,35],[40.70811,-73.99932,35],[40.70814,-73.99913,35],[40.70826,-73.99886,35],[40.70837,-73.99864,35],[40.70856,-73.99818,34],[40.70865,-73.99789,34],[40.70886,-73.99699,34],[40.70897,-73.99628,34],[40.709,-73.99602,34],[40.70928,-73.99425,33],[40.70936,-73.99385,33],[40.70947,-73.99303,33],[40.70959,-73.99223,32],[40.70978,-73.99077,32],[40.70988,-73.99007,30],[40.70995,-73.98959,29],[40.71011,-73.98827,26],[40.71021,-73.98742,24],[40.71046,-73.98527,16],[40.71057,-73.98404,12],[40.71064,-73.98309,11],[40.71072,-73.98195,10],[40.71082,-73.98052,8],[40.71089,-73.98017,8,"FDR Drive"],[40.71102,-73.97969,8],[40.71116,-73.97921,8],[40.71131,-73.97891,8],[40.71147,-73.97861,8],[40.71183,-73.97816,6],[40.71202,-73.97795,6],[40.71242,-73.97766,5],[40.71288,-73.97743,5],[40.71333,-73.97719,6],[40.71379,-73.97696,7],[40.71425,-73.97673,7],[40.7147,-73.97649,7],[40.71516,-73.97626,6],[40.71562,-73.97603,6],[40.71607,-73.97579,7],[40.71653,-73.97556,8],[40.71684,-73.97543,8],[40.71715,-73.97529,7],[40.71757,-73.97516,7],[40.71799,-73.97503,6],[40.71852,-73.97496,7],[40.71906,-73.97488,8],[40.71959,-73.97481,8],[40.72013,-73.97474,8],[40.72066,-73.97467,7],[40.7212,-73.97459,6],[40.72173,-73.97452,6],[40.72204,-73.97443,7],[40.72235,-73.97434,7],[40.72279,-73.97407,7],[40.72324,-73.97379,6],[40.72368,-73.97352,6],[40.72413,-73.97325,7],[40.72457,-73.97298,7],[40.72502,-73.9727,7],[40.72546,-73.97243,6],[40.72586,-73.97223,8],[40.72627,-73.97202,8],[40.72673,-73.97192,8],[40.72719,-73.97182,8],[40.72766,-73.97173,8],[40.72812,-73.97163,9],[40.72858,-73.97153,10],[40.7289,-73.97158,10],[40.72923,-73.97162,8],[40.72953,-73.97175,8],[40.7298,-73.97197,7],[40.73007,-73.97219,7],[40.73041,-73.97264,0],[40.73076,-73.97309,0],[40.73099,-73.97332,0],[40.73122,-73.97355,0],[40.73161,-73.97373,7],[40.732,-73.97391,7],[40.73252,-73.97404,7],[40.73303,-73.97417,1],[40.73355,-73.97431,1],[40.73407,-73.97444,1],[40.73458,-73.97457,0],[40.7351,-73.9747,1],[40.73562,-73.97465,3],[40.73613,-73.9746,3],[40.7365,-73.97449,2],[40.73687,-73.97439,2],[40.7373,-73.97414,2],[40.73774,-73.97389,1],[40.73817,-73.97364,1],[40.73861,-73.97339,1],[40.73904,-73.97314,0],[40.73947,-73.97296,0],[40.73997,-73.97281,0],[40.74048,-73.97265,7],[40.74098,-73.9725,7],[40.74126,-73.97244,7],[40.74154,-73.97239,7],[40.74184,-73.97243,7],[40.74213,-73.97246,7],[40.74249,-73.97238,8],[40.74289,-73.9722,8],[40.74329,-73.97202,2],[40.74363,-73.9718,2],[40.74398,-73.97157,22],[40.74432,-73.97135,18],[40.7445,-73.97112,18],[40.74482,-73.97083,18],[40.74513,-73.97055,12,"FDR exit ramp"],[40.7451,-73.97058,12],[40.74548,-73.97025,9],[40.74587,-73.96992,9],[40.74625,-73.96959,6],[40.74664,-73.96926,13],[40.74702,-73.96893,13],[40.74699,-73.96896,13],[40.74743,-73.96859,32],[40.74787,-73.96822,42,"42nd St"],[40.74804,-73.96821,42],[40.74824,-73.96835,42],[40.74847,-73.96892,59],[40.74871,-73.96949,51],[40.74894,-73.97007,54],[40.74918,-73.97064,54],[40.74941,-73.97121,47],[40.74965,-73.97178,40],[40.74988,-73.97236,40],[40.75012,-73.97293,37],[40.75035,-73.9735,41],[40.7506,-73.9741,41],[40.75085,-73.97469,47],[40.75111,-73.97529,53],[40.75136,-73.97589,60],[40.75161,-73.97649,60],[40.75186,-73.97708,63],[40.75211,-73.97768,66],[40.75236,-73.97828,71],[40.75262,-73.97888,71],[40.75287,-73.97947,73],[40.75312,-73.98007,71],[40.75337,-73.98067,68],[40.75362,-73.98126,68],[40.75388,-73.98186,66],[40.75413,-73.98246,64],[40.75438,-73.98306,64],[40.75463,-73.98365,61],[40.75488,-73.98425,59],[40.75513,-73.98485,54],[40.75539,-73.98545,54],[40.75564,-73.98604,56],[40.75589,-73.98664,54],[40.75603,-73.98685,54],[40.75609,-73.98687,54,"7th Ave, Times Square"],[40.75651,-73.98659,52],[40.75692,-73.98631,52],[40.75734,-73.98603,52],[40.75778,-73.9857,52],[40.75821,-73.98538,55],[40.75865,-73.98505,55],[40.75909,-73.98473,56],[40.75953,-73.9844,59],[40.75996,-73.98408,61],[40.7604,-73.98375,61],[40.76084,-73.98343,65],[40.76128,-73.98311,72],[40.76172,-73.98279,72],[40.76216,-73.98248,78],[40.7626,-73.98216,81],[40.76304,-73.98184,83],[40.76349,-73.98152,83],[40.76393,-73.9812,85],[40.76437,-73.98088,87],[40.76481,-73.98056,87],[40.76525,-73.98025,79],[40.76569,-73.97993,77],[40.76613,-73.97961,71],[40.76657,-73.97929,71,"Central Park South"],[40.76671,-73.97899,64],[40.76671,-73.9787,64],[40.76647,-73.97814,59],[40.76624,-73.97759,59],[40.766,-73.97703,57],[40.76577,-73.97647,49],[40.76553,-73.97592,49],[40.76529,-73.97536,50],[40.76506,-73.97481,55],[40.76482,-73.97425,55,"Central Park, East Drive"],[40.76466,-73.9737,53],[40.76469,-73.97358,53],[40.76496,-73.97333,55],[40.76522,-73.97309,55],[40.76518,-73.97309,55],[40.76525,-73.97309,55],[40.76559,-73.97286,63],[40.76592,-73.97264,63],[40.76613,-73.97256,69],[40.76634,-73.97256,69],[40.76667,-73.97276,69],[40.76699,-73.97296,80],[40.76729,-73.97305,80],[40.76759,-73.97314,82],[40.7681,-73.97314,81],[40.76854,-73.97305,81],[40.76882,-73.97295,78],[40.76909,-73.97285,78],[40.76929,-73.97269,78],[40.76945,-73.97247,76],[40.76968,-73.97185,76],[40.76975,-73.97189,76],[40.77004,-73.97144,81],[40.77043,-73.97122,86],[40.77081,-73.97099,86],[40.77099,-73.97081,83],[40.77122,-73.9705,83],[40.7714,-73.97012,74],[40.77158,-73.96975,74],[40.77184,-73.96942,72],[40.7723,-73.96911,72],[40.77269,-73.96893,77],[40.77301,-73.96892,77],[40.77303,-73.96882,77,"72nd St Transverse"],[40.77324,-73.96889,76],[40.77335,-73.96902,76],[40.77346,-73.96933,76],[40.77342,-73.96986,69],[40.77344,-73.97018,69],[40.77354,-73.97053,67],[40.77364,-73.97089,67],[40.77374,-73.97134,68],[40.77383,-73.9718,68],[40.7738,-73.97223,73],[40.77377,-73.97265,73],[40.77383,-73.97305,73],[40.77395,-73.97333,82],[40.77421,-73.97364,82],[40.77447,-73.97395,89],[40.77456,-73.97412,89],[40.77468,-73.97447,89],[40.77469,-73.97469,92,"West Drive to the finish"],[40.77462,-73.97469,92],[40.77457,-73.97511,92],[40.77447,-73.97536,92],[40.77422,-73.97565,92],[40.77378,-73.97599,92],[40.77336,-73.9762,92],[40.77294,-73.97642,92]];
+var M_PER_MI=1609.344, STEP=0.02;
+function hav(a,b,c,d){var R=6371000,p=Math.PI/180,x=(c-a)*p,y=(d-b)*p,h=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(h));}
+function fmtPace(s){if(!isFinite(s)||s<=0)return"--";s=Math.round(s);return Math.floor(s/60)+":"+("0"+s%60).slice(-2);}
+function fmtClock(s){s=Math.round(Math.abs(s));var h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h+":"+("0"+m).slice(-2)+":"+("0"+s%60).slice(-2);}
+function parseClock(t){var p=String(t).trim().split(":").map(Number);if(p.some(isNaN))return NaN;if(p.length===3)return p[0]*3600+p[1]*60+p[2];if(p.length===2)return p[0]*3600+p[1]*60;return NaN;}
+function factor(g){return g>=0?1+0.033*Math.min(g,12):1-0.018*Math.min(-g,8);}
+function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(e){return null;}}
+function $(id){return document.getElementById(id);}
+function el(n,a){var e=document.createElementNS("http://www.w3.org/2000/svg",n);for(var k in a)e.setAttribute(k,a[k]);return e;}
+
+/* ---------- course model ---------- */
+var C;
+function build(pts,scaleTo){
+  var d=[0],i,q; for(i=1;i<pts.length;i++)d.push(d[i-1]+hav(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1])/M_PER_MI);
+  var raw=d[d.length-1],k=scaleTo?scaleTo/raw:1,total=raw*k,n=Math.round(total/STEP)+1,lat=[],lon=[],ele=[],zoneAt=[],j=0,zj=-1,zone="";
+  for(i=0;i<n;i++){var s=Math.min(i*STEP,total)/k; while(j<pts.length-2&&d[j+1]<s)j++;
+    while(zj<j){zj++;if(pts[zj][3])zone=pts[zj][3];}
+    var f=d[j+1]>d[j]?(s-d[j])/(d[j+1]-d[j]):0; f=Math.max(0,Math.min(1,f));
+    lat.push(pts[j][0]+f*(pts[j+1][0]-pts[j][0])); lon.push(pts[j][1]+f*(pts[j+1][1]-pts[j][1])); ele.push(pts[j][2]+f*(pts[j+1][2]-pts[j][2])); zoneAt.push(zone);}
+  var sm=[],w=4; for(i=0;i<n;i++){var a=0,c=0;for(q=Math.max(0,i-w);q<=Math.min(n-1,i+w);q++){a+=ele[q];c++;}sm.push(a/c);}
+  var grade=[],cls=[]; for(i=0;i<n;i++){var lo=Math.max(0,i-3),hi=Math.min(n-1,i+3),g=(sm[hi]-sm[lo])/((hi-lo)*STEP*5280)*100;grade.push(g);cls.push(g>=1?1:g<=-1?-1:0);}
+  var runs=[],st=0; for(i=1;i<=n;i++){if(i===n||cls[i]!==cls[st]){runs.push([st,i-1,cls[st]]);st=i;}}
+  for(i=1;i<runs.length;i++){if(runs[i][1]-runs[i][0]+1<5){for(q=runs[i][0];q<=runs[i][1];q++)cls[q]=runs[i-1][2];runs[i][2]=runs[i-1][2];}}
+  var sections=[]; st=0; for(i=1;i<=n;i++){if(i===n||cls[i]!==cls[st]){sections.push({a:st,b:Math.min(i,n-1),cls:cls[st]});st=i;}}
+  sections.forEach(function(S){S.len=(S.b-S.a)*STEP;S.grade=S.len>0?(sm[S.b]-sm[S.a])/(S.len*5280)*100:0;});
+  var cs=Math.cos(lat[0]*Math.PI/180),x=[],y=[]; for(i=0;i<n;i++){x.push((lon[i]-lon[0])*111320*cs);y.push(-(lat[i]-lat[0])*111320);}
+  C={n:n,lat:lat,lon:lon,ele:sm,grade:grade,cls:cls,x:x,y:y,zoneAt:zoneAt,sections:sections,total:(n-1)*STEP};
+}
+function secOf(i){for(var k=0;k<C.sections.length;k++){if(i<C.sections[k].b||k===C.sections.length-1)return k;}return 0;}
+
+/* ---------- plan ---------- */
+var goal=parseClock(store("nych_goal")||"")||5190,strat=store("nych_strat")||"effort",T=[];
+function plan(){var i,sum=0,f=[];for(i=0;i<C.n-1;i++){var g=(C.grade[i]+C.grade[i+1])/2;f.push(strat==="effort"?factor(g):1);sum+=f[i]*STEP;}
+  var base=goal/sum;T=[0];for(i=0;i<C.n-1;i++)T.push(T[i]+base*f[i]*STEP);
+  C.sections.forEach(function(S){S.pace=S.len>0?(T[S.b]-T[S.a])/S.len:base;});}
+function timeAt(mi){var p=Math.max(0,Math.min(C.total,mi))/STEP,i=Math.min(C.n-2,Math.floor(p));return T[i]+(T[i+1]-T[i])*(p-i);}
+
+/* ---------- state ---------- */
+var pos=0,mode="study",follow=true,playing=null;
+var live={watch:null,fixes:[],speed:null,off:false,t0:null,tick:null,lock:null,last:-1};
+var HEX={"1":"#ff7a3d","0":"#e8edf2","-1":"#3fd0d6"},CLS_NAME={"1":"Climb","0":"Flat","-1":"Descent"};
+
+/* ---------- 3D map ---------- */
+var map=null,mapReady=false,dot=null,marks=[],camB=null,satOK=false,svgDot=null,svgBox=null;
+function routeData(){return{type:"FeatureCollection",features:C.sections.map(function(S){var c=[];for(var i=S.a;i<=S.b;i++)c.push([C.lon[i],C.lat[i]]);
+  return{type:"Feature",properties:{cls:S.cls},geometry:{type:"LineString",coordinates:c}};})};}
+function initMap(){
+  if(typeof maplibregl==="undefined"){svgFallback("The 3D map library could not load here, so this is a plain course drawing.");return;}
+  try{
+    map=new maplibregl.Map({container:"map",attributionControl:false,maxPitch:75,center:[C.lon[0],C.lat[0]],zoom:16.4,pitch:62,bearing:0,
+      style:{version:8,glyphs:"https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+        sky:{"sky-color":"#7db4ea","horizon-color":"#dbe8f3","fog-color":"#dbe8f3","sky-horizon-blend":0.6,"horizon-fog-blend":0.7,"fog-ground-blend":0.35},
+        sources:{sat:{type:"raster",tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19},
+                 ofm:{type:"vector",url:"https://tiles.openfreemap.org/planet"}},
+        layers:[{id:"bg",type:"background",paint:{"background-color":"#10161d"}},
+          {id:"sat",type:"raster",source:"sat",paint:{"raster-saturation":0.12,"raster-contrast":0.08}},
+          {id:"roadnames",type:"symbol",source:"ofm","source-layer":"transportation_name",minzoom:14,layout:{"symbol-placement":"line","text-field":["get","name"],"text-font":["Noto Sans Regular"],"text-size":12},paint:{"text-color":"#fff","text-halo-color":"rgba(0,0,0,.75)","text-halo-width":1.6}},
+          {id:"bld",type:"fill-extrusion",source:"ofm","source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":["interpolate",["linear"],["coalesce",["get","render_height"],8],0,"#cfc9bf",60,"#b9bcc2",250,"#9aa6b4"],"fill-extrusion-height":["coalesce",["get","render_height"],8],"fill-extrusion-base":["coalesce",["get","render_min_height"],0],"fill-extrusion-opacity":0.8}}]}});
+  }catch(e){map=null;svgFallback("3D maps are not supported in this browser, so this is a plain course drawing.");return;}
+  $("attr").textContent="Imagery © Esri, Maxar, Earthstar Geographics. Buildings and labels © OpenFreeMap, OpenMapTiles, OpenStreetMap.";
+  map.on("data",function(e){if(e.sourceId==="sat"&&e.tile)satOK=true;});
+  map.on("error",function(){});
+  setTimeout(function(){if(!satOK)notice("Satellite imagery and buildings are blocked in this view, so only the course line shows. Open the hosted copy of this page for the full 3D map.");},7000);
+  var setup=function(){ if(mapReady)return;
+    map.addSource("route",{type:"geojson",data:routeData()});
+    map.addLayer({id:"route-case",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#0b0f14","line-width":["interpolate",["linear"],["zoom"],11,5,17,14],"line-opacity":0.85}});
+    map.addLayer({id:"route",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["match",["get","cls"],1,HEX["1"],-1,HEX["-1"],HEX["0"]],"line-width":["interpolate",["linear"],["zoom"],11,3,17,9]}});
+    var d=document.createElement("div");d.className="dot";dot=new maplibregl.Marker({element:d}).setLngLat([C.lon[0],C.lat[0]]).addTo(map);
+    mapReady=true;placeMarks();camB=null;render(true);
+  };
+  map.once("style.load",setup);map.once("load",setup);
+  map.on("dragstart",function(){if(follow)setFollow(false,true);});
+}
+function placeMarks(){
+  marks.forEach(function(m){m.remove();});marks=[];if(!mapReady)return;
+  function add(i,txt,end){var d=document.createElement("div");d.className="mk"+(end?" end":"");d.textContent=txt;marks.push(new maplibregl.Marker({element:d}).setLngLat([C.lon[i],C.lat[i]]).addTo(map));}
+  for(var m=1;m<=Math.floor(C.total);m++)add(Math.round(m/STEP),m);
+  add(0,"Start",true);add(C.n-1,"Finish",true);
+}
+function bearingAt(i){var j=Math.min(C.n-1,i+7),k=Math.max(0,j-7);return Math.atan2(C.x[j]-C.x[k],-(C.y[j]-C.y[k]))*180/Math.PI;}
+function camera(i,fast){
+  if(!mapReady)return;dot.setLngLat([C.lon[i],C.lat[i]]);if(!follow)return;
+  var b=bearingAt(i); if(camB===null)camB=b; var dlt=((b-camB+540)%360)-180; camB+=dlt*(fast?1:0.35);
+  var o={center:[C.lon[i],C.lat[i]],bearing:camB,pitch:64,zoom:16.7,padding:{top:150,bottom:300,left:0,right:0}};
+  if(fast)map.jumpTo(o);else map.easeTo(Object.assign(o,{duration:350,easing:function(t){return t;}}));
+}
+function overview(){if(!mapReady)return;var b=new maplibregl.LngLatBounds();for(var i=0;i<C.n;i+=5)b.extend([C.lon[i],C.lat[i]]);b.extend([C.lon[C.n-1],C.lat[C.n-1]]);
+  map.setPadding({top:0,bottom:0,left:0,right:0});map.fitBounds(b,{padding:{top:150,bottom:310,left:30,right:30},pitch:35,bearing:28,duration:900});}
+function notice(t){var n=$("notice");n.textContent=t;n.style.display=t?"block":"none";}
+
+/* ---------- flat fallback drawing ---------- */
+function svgFallback(msg){
+  var svg=$("svgmap");svg.style.display="block";$("map").style.display="none";svg.textContent="";notice(msg);
+  var minx=Math.min.apply(null,C.x),maxx=Math.max.apply(null,C.x),miny=Math.min.apply(null,C.y),maxy=Math.max.apply(null,C.y),h=maxy-miny;
+  svgBox=[minx-h*0.35,miny-h*0.16,maxx-minx+h*0.7,h*1.5];svg.setAttribute("viewBox",svgBox.join(" "));
+  C.sections.forEach(function(S){var p="";for(var i=S.a;i<=S.b;i++)p+=(i===S.a?"M":"L")+C.x[i].toFixed(1)+" "+C.y[i].toFixed(1);
+    svg.appendChild(el("path",{d:p,fill:"none",stroke:HEX[S.cls],"stroke-width":5,"stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));});
+  svgDot=el("circle",{r:h*0.012,fill:"#ffe14a",stroke:"#111","stroke-width":2,"vector-effect":"non-scaling-stroke"});svg.appendChild(svgDot);
+}
+
+/* ---------- profile, splits ---------- */
+var profLine,eMin,eMax;
+function drawProfile(){
+  var svg=$("profile");svg.textContent="";eMin=Math.min.apply(null,C.ele);eMax=Math.max.apply(null,C.ele);var span=Math.max(40,eMax-eMin);
+  function X(i){return i/(C.n-1)*1000;}function Y(e){return 94-(e-eMin)/span*84;}
+  C.sections.forEach(function(S){var p="M"+X(S.a).toFixed(1)+" 100";for(var i=S.a;i<=S.b;i++)p+="L"+X(i).toFixed(1)+" "+Y(C.ele[i]).toFixed(1);p+="L"+X(S.b).toFixed(1)+" 100Z";
+    svg.appendChild(el("path",{d:p,fill:HEX[S.cls],opacity:S.cls===0?.55:.95}));});
+  profLine=el("line",{y1:0,y2:100,stroke:"#ffe14a","stroke-width":3,"vector-effect":"non-scaling-stroke"});svg.appendChild(profLine);
+  var ax=$("axis");ax.textContent="";["Start","mi "+Math.round(C.total/4),"mi "+Math.round(C.total/2),"mi "+Math.round(C.total*3/4),"Finish"].forEach(function(s){var e=document.createElement("span");e.textContent=s;ax.appendChild(e);});
+}
+function drawSplits(){
+  var tb=$("splits");tb.textContent="";
+  for(var m=0;m<C.total-1e-6;m++){var a=Math.round(m/STEP),b=Math.min(C.n-1,Math.round((m+1)/STEP)),len=(b-a)*STEP;if(len<=0)break;
+    var net=C.ele[b]-C.ele[a],g=net/(len*5280)*100,tr=document.createElement("tr");tr.dataset.m=m;
+    [[len>0.99?String(m+1):"Last "+len.toFixed(2)],[(net>=0?"+":"")+Math.round(net),net>=5?"gu":net<=-5?"gd":""],[(g>=0?"+":"")+g.toFixed(1)+"%",g>=1?"gu":g<=-1?"gd":""],[fmtPace((T[b]-T[a])/len),"p"],[fmtClock(T[b])]]
+      .forEach(function(c){var td=document.createElement("td");td.textContent=c[0];if(c[1])td.className=c[1];tr.appendChild(td);});
+    tb.appendChild(tr);}
+}
+
+/* ---------- render ---------- */
+function render(fast){
+  var i=Math.max(0,Math.min(C.n-1,Math.round(pos/STEP))),k=secOf(i),S=C.sections[k],g=C.grade[i],left=Math.max(0,S.b*STEP-pos);
+  $("mi").textContent="MI "+pos.toFixed(2);$("zone").textContent=C.zoneAt[i]||CLS_NAME[S.cls];
+  $("grade").textContent=(g>=0?"+":"")+g.toFixed(1)+"%";$("gradeU").textContent=CLS_NAME[S.cls].toLowerCase()+", "+left.toFixed(2)+" mi left";
+  $("cGrade").className="cell"+(S.cls>0?" up":S.cls<0?" down":"");$("target").textContent=fmtPace(S.pace);
+  var N=C.sections[k+1],nav=$("nav");
+  if(N){nav.className="nav glass"+(N.cls>0?" up":N.cls<0?" down":"");$("n1").textContent="In "+left.toFixed(2)+" mi";
+    $("n2").innerHTML=CLS_NAME[N.cls]+" "+(N.grade>=0?"+":"")+N.grade.toFixed(1)+"% for "+N.len.toFixed(2)+" mi. Target <b>"+fmtPace(N.pace)+"</b>";}
+  else{nav.className="nav glass";$("n1").textContent=Math.max(0,C.total-pos).toFixed(2)+" mi to go";$("n2").textContent="Last section. Run through the line.";}
+  if(mode==="study"){$("youL").textContent="Clock here";$("you").textContent=fmtClock(timeAt(pos)).replace(/^0:/,"");$("youU").textContent="if on plan";$("cYou").className="cell";}
+  else{$("youL").textContent="Your pace";var p=live.speed&&live.speed>0.6?M_PER_MI/live.speed:NaN;$("you").textContent=fmtPace(p);
+    if(isFinite(p)){var d=Math.round(p-S.pace);$("youU").textContent=Math.abs(d)<=3?"on target":Math.abs(d)+" sec "+(d>0?"too slow":"too fast");$("cYou").className="cell "+(Math.abs(d)<=6?"good":"bad");}
+    else{$("youU").textContent=live.watch===null?"GPS off":"waiting for speed";$("cYou").className="cell";}
+    if(live.t0){var e=(Date.now()-live.t0)/1000,ab=timeAt(pos)-e;$("clk").textContent=fmtClock(e);
+      if(live.last>=0){$("ab").textContent=fmtPace(Math.abs(ab))+(ab>=0?" ahead":" behind");$("cAB").className=ab>=-5?"good":"bad";$("proj").textContent=fmtClock(e+(goal-timeAt(pos)));}}}
+  profLine.setAttribute("x1",i/(C.n-1)*1000);profLine.setAttribute("x2",i/(C.n-1)*1000);
+  if(svgDot){svgDot.setAttribute("cx",C.x[i]);svgDot.setAttribute("cy",C.y[i]);}
+  camera(i,fast);
+  var m=Math.min(Math.floor(pos),Math.ceil(C.total)-1);$("splits").querySelectorAll("tr").forEach(function(tr){tr.className=+tr.dataset.m===m?"cur":"";});
+}
+function goalUI(){$("goal").value=fmtClock(goal);$("avg").textContent=fmtPace(goal/C.total);$("sEffort").setAttribute("aria-pressed",strat==="effort");$("sPace").setAttribute("aria-pressed",strat==="pace");}
+function rebuildAll(){plan();drawProfile();drawSplits();goalUI();if(mapReady){map.getSource("route").setData(routeData());placeMarks();camB=null;}else if(svgDot)svgFallback($("notice").textContent);render(true);}
+function replan(){plan();drawSplits();goalUI();store("nych_goal",fmtClock(goal));store("nych_strat",strat);render(true);}
+
+/* ---------- live GPS ---------- */
+function snap(lat,lon){
+  var a=0,b=C.n-1,i,d;if(live.last>=0){a=Math.max(0,live.last-8);b=Math.min(C.n-1,live.last+40);}
+  var best=-1,bd=1e12;for(i=a;i<=b;i++){d=hav(lat,lon,C.lat[i],C.lon[i]);if(d<bd-(live.last<0?15:0)){bd=d;best=i;}}
+  if(bd>120&&live.last>=0){for(i=live.last;i<C.n;i++){d=hav(lat,lon,C.lat[i],C.lon[i]);if(d<bd){bd=d;best=i;}}}
+  return{i:best,d:bd};
+}
+function onFix(p){
+  var c=p.coords,t=p.timestamp||Date.now();live.fixes.push({t:t,lat:c.latitude,lon:c.longitude});while(live.fixes.length>2&&t-live.fixes[0].t>12000)live.fixes.shift();
+  var sp=null;if(typeof c.speed==="number"&&isFinite(c.speed)&&c.speed>=0)sp=c.speed;
+  else if(live.fixes.length>1){var f=live.fixes,dist=0;for(var i=1;i<f.length;i++)dist+=hav(f[i-1].lat,f[i-1].lon,f[i].lat,f[i].lon);var dt=(f[f.length-1].t-f[0].t)/1000;if(dt>=4)sp=dist/dt;}
+  if(sp!==null)live.speed=live.speed===null?sp:live.speed*0.7+sp*0.3;
+  var s=snap(c.latitude,c.longitude);live.off=s.d>150;if(!live.off){live.last=s.i;pos=s.i*STEP;}
+  var st=$("status");st.className="status"+(live.off?" err":"");
+  st.textContent=live.off?(s.d/M_PER_MI).toFixed(2)+" mi off the course. Pace still shows; grade and target resume on course.":"On course. GPS accuracy about "+Math.round(c.accuracy)+" m.";
+  if(live.off&&mapReady)dot.setLngLat([c.longitude,c.latitude]);
+  render();
+}
+function onErr(e){var st=$("status");st.className="status err";st.textContent=e&&e.code===1?"Location is blocked here. Open this page from its own https address and allow location.":"No GPS signal yet. Keep the screen on and stay in the open.";}
+function gpsToggle(){
+  if(live.watch!==null){navigator.geolocation.clearWatch(live.watch);live.watch=null;$("gps").textContent="Start GPS";$("status").className="status";$("status").textContent="GPS is off.";if(live.lock){try{live.lock.release();}catch(e){}live.lock=null;}render();return;}
+  if(!navigator.geolocation){onErr({code:1});return;}
+  $("status").className="status";$("status").textContent="Looking for GPS...";
+  try{live.watch=navigator.geolocation.watchPosition(onFix,onErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}catch(e){onErr({code:1});return;}
+  $("gps").textContent="Stop GPS";wake();
+}
+function wake(){if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(l){live.lock=l;}).catch(function(){});}
+document.addEventListener("visibilitychange",function(){if(!document.hidden&&live.watch!==null)wake();});
+function clockToggle(){
+  if(live.t0){live.t0=null;clearInterval(live.tick);$("clkBtn").textContent="Start clock";$("clk").textContent="0:00:00";$("ab").textContent="--";$("proj").textContent="--";$("cAB").className="";return;}
+  live.t0=Date.now();$("clkBtn").textContent="Reset clock";live.tick=setInterval(function(){render();},1000);render();
+}
+
+/* ---------- GPX ---------- */
+function loadGpx(text){
+  var doc=new DOMParser().parseFromString(text,"application/xml"),nodes=doc.querySelectorAll("trkpt, rtept"),pts=[],i;
+  for(i=0;i<nodes.length;i++){var la=parseFloat(nodes[i].getAttribute("lat")),lo=parseFloat(nodes[i].getAttribute("lon")),e=nodes[i].querySelector("ele");if(isFinite(la)&&isFinite(lo))pts.push([la,lo,e?parseFloat(e.textContent)*3.28084:NaN]);}
+  if(pts.length<10)return"That file has no track points.";
+  if(pts.filter(function(p){return isFinite(p[2]);}).length<pts.length*0.9)return"That GPX has no elevation data, so grades cannot be worked out.";
+  var last=0;pts.forEach(function(p){if(isFinite(p[2]))last=p[2];else p[2]=last;});build(pts,null);C.builtin=false;return"";
+}
+function useBuiltin(){build(BUILTIN,RACE_MI);C.builtin=true;}
+function srcNote(){$("reset").hidden=C.builtin;
+  $("src").innerHTML=C.builtin?"<b>Course data.</b> NYRR has not posted a 2027 map yet, so this is the 2026 course: start on Washington Ave near Sullivan Pl, Flatbush out and back, Prospect Park, Brooklyn Bridge, FDR, 42nd St, 7th Ave, Central Park. Roads and elevation come from the NYC Half route on Strava. The Tillary St to FDR stretch follows a 2026 course track, with bridge heights estimated. The Flatbush turnaround is placed so the course totals 13.1 miles, so it could be off by about 100 yards. Load the official GPX when NYRR posts it and everything recalculates."
+    :"<b>Course data.</b> Loaded from your GPX file: "+C.total.toFixed(2)+" mi, "+Math.round(eMin)+" to "+Math.round(eMax)+" ft.";}
+
+/* ---------- wiring ---------- */
+function setMode(m){mode=m;$("app").classList.toggle("live",m==="live");$("tabStudy").setAttribute("aria-pressed",m==="study");$("tabLive").setAttribute("aria-pressed",m==="live");if(m==="live"){stopPlay();setFollow(true);}render(true);}
+function setFollow(f,quiet){follow=f;$("view").innerHTML=f?"&#9678;":"&#10138;";$("view").title=f?"Show full course":"Follow my position";if(!quiet){if(f){camB=null;render(true);}else overview();}}
+function stopPlay(){if(playing){clearInterval(playing);playing=null;$("play").textContent="Play flyover";}}
+function init(){
+  useBuiltin();plan();drawProfile();drawSplits();goalUI();srcNote();initMap();render(true);
+  $("tabStudy").onclick=function(){setMode("study");};$("tabLive").onclick=function(){setMode("live");};
+  $("view").onclick=function(){setFollow(!follow);};
+  $("gear").onclick=function(){$("panel").classList.add("open");};$("close").onclick=function(){$("panel").classList.remove("open");};
+  $("panel").onclick=function(e){if(e.target===this)this.classList.remove("open");};
+  $("minus").onclick=function(){goal=Math.max(3600,goal-15);replan();};$("plus").onclick=function(){goal=Math.min(14400,goal+15);replan();};
+  $("goal").onchange=function(){var v=parseClock(this.value);if(isFinite(v)&&v>=3000&&v<=18000)goal=v;replan();};
+  $("sEffort").onclick=function(){strat="effort";replan();};$("sPace").onclick=function(){strat="pace";replan();};
+  $("play").onclick=function(){if(playing){stopPlay();return;}if(pos>=C.total-0.01)pos=0;if(!follow)setFollow(true);$("play").textContent="Pause";
+    playing=setInterval(function(){pos=Math.min(C.total,pos+0.01);render();if(pos>=C.total)stopPlay();},90);};
+  var pr=$("profile"),drag=false;
+  function scrubAt(ev){var r=pr.getBoundingClientRect();pos=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*C.total;render(true);}
+  pr.addEventListener("pointerdown",function(ev){if(mode!=="study")return;stopPlay();if(!follow)setFollow(true,true);drag=true;try{pr.setPointerCapture(ev.pointerId);}catch(e){}scrubAt(ev);});
+  pr.addEventListener("pointermove",function(ev){if(drag)scrubAt(ev);});pr.addEventListener("pointerup",function(){drag=false;});pr.addEventListener("pointercancel",function(){drag=false;});
+  $("gps").onclick=gpsToggle;$("clkBtn").onclick=clockToggle;
+  $("gpx").onchange=function(){var f=this.files&&this.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){var err=loadGpx(String(rd.result));if(err){$("src").innerHTML="<b>Could not use that file.</b> "+err;return;}pos=0;live.last=-1;rebuildAll();srcNote();};rd.readAsText(f);this.value="";};
+  $("reset").onclick=function(){useBuiltin();pos=0;live.last=-1;rebuildAll();srcNote();};
+}
+init();
+</script>
+</body>
+</html>
